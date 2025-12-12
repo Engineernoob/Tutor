@@ -11,7 +11,8 @@ from vision.camera import Camera
 from vision.face_detector import FacePresenceDetector
 from vision.face_recognition import FaceRecognizer
 from vision.hand_tracker import HandTracker
-from utils.ui import panel, label
+from utils.ui import polybar
+
 camera = Camera()
 BLUR_DURATION = 1.5
 WINDOW_NAME = "Tutor - Gesture-Controlled Desktop"
@@ -54,28 +55,11 @@ class SecurityState:
 
 
 def render_ui(
-    frame, gesture: str, identity: str, actions, security_state: SecurityState
+    frame, gesture_on: bool, identity: str
 ) -> None:
     """Render the user interface overlay on the frame."""
-    # Determine status and color
-    if actions.control_enabled:
-        status = "ACTIVE"
-        color = (0, 255, 0)  # Green
-    elif security_state.lock_triggered:
-        status = "LOCKED"
-        color = (0, 0, 255)  # Red
-    else:
-        status = "UNKNOWN"
-        color = (255, 255, 255)  # White
 
-    # Draw background rectangle
-    panel(frame, 10, 10, 520, 150)
-
-    # Render text elements
-    label(frame, f"Gesture: {gesture}", 20, 40, color)
-    label(frame, f"Control: {status}", 20, 75, color)
-    label(frame, f"Face: {identity}", 20, 110, color)
-    label(frame, "Press R to register face", 20, 140, color)
+    polybar(frame, gesture_on, identity)
 
 
 def handle_security_warnings(
@@ -98,14 +82,11 @@ def handle_security_warnings(
         # Start countdown for face absence
         security_state.start_blur()
 
-    label(
+    polybar(
     frame,
-    "Securing system…",
-    40,
-    frame.shape[0] - 40,
-    color=(255, 255, 255),
-            scale=0.8,
-        )
+    False,
+    identity if identity != "UNKNOWN" else "UNREGISTERED"
+)
 
 
 def initialize_components() -> Tuple[
@@ -160,7 +141,7 @@ def main():
             handle_security_warnings(frame, identity, face_absent, security_state)
 
             # Render UI
-            render_ui(frame, gesture, identity, actions, security_state)
+            render_ui(frame, gesture.on, identity)
 
             # Display frame
             cv2.imshow(WINDOW_NAME, frame)
