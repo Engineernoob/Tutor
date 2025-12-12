@@ -1,13 +1,15 @@
 import time
 
+
 class GestureMapper:
     """
     Maps stabilized gestures to desktop actions.
     Obeys core state (gesture_enabled, quiet_mode).
     """
 
-    def __init__(self, actions):
+    def __init__(self, actions, state):
         self.actions = actions
+        self.state = state
 
         self.prev_gesture = "NO_HAND"
         self.cooldown = 0.7  # seconds
