@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+*.pyz
+
+# venv
+venv/
+
+# data
+data/
+
+# logs
+logs/
+
+# config
+config/
+
+# screenshots
+screenshots/
+
+# .env
+.env
+
+# MacOS
+.DS_Store
+
+# Linux
+.cache/
+.config/
+.local/
+.npm/
+.yarn/
