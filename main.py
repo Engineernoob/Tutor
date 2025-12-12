@@ -11,7 +11,7 @@ from vision.camera import Camera
 from vision.face_detector import FacePresenceDetector
 from vision.face_recognition import FaceRecognizer
 from vision.hand_tracker import HandTracker
-
+from utils.ui import panel, label
 camera = Camera()
 BLUR_DURATION = 1.5
 WINDOW_NAME = "Tutor - Gesture-Controlled Desktop"
@@ -69,27 +69,13 @@ def render_ui(
         color = (255, 255, 255)  # White
 
     # Draw background rectangle
-    cv2.rectangle(frame, (10, 10), (520, 150), (0, 0, 0), -1)
+    panel(frame, 10, 10, 520, 150)
 
     # Render text elements
-    cv2.putText(
-        frame, f"Gesture: {gesture}", (20, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2
-    )
-    cv2.putText(
-        frame, f"Control: {status}", (20, 75), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2
-    )
-    cv2.putText(
-        frame, f"Face: {identity}", (20, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2
-    )
-    cv2.putText(
-        frame,
-        "Press R to register face",
-        (20, 140),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.6,
-        color,
-        2,
-    )
+    label(frame, f"Gesture: {gesture}", 20, 40, color)
+    label(frame, f"Control: {status}", 20, 75, color)
+    label(frame, f"Face: {identity}", 20, 110, color)
+    label(frame, "Press R to register face", 20, 140, color)
 
 
 def handle_security_warnings(
@@ -112,23 +98,14 @@ def handle_security_warnings(
         # Start countdown for face absence
         security_state.start_blur()
 
-        cv2.putText(
-            frame,
-            "No face detected — locking",
-            (40, height - 40),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.9,
-            (255, 255, 255),
-            2,
+    label(
+    frame,
+    "Securing system…",
+    40,
+    frame.shape[0] - 40,
+    color=(255, 255, 255),
+            scale=0.8,
         )
-
-        if security_state.should_lock():
-            lock_screen()
-            security_state.reset()
-
-    else:
-        # Reset security state when conditions are normal
-        security_state.reset()
 
 
 def initialize_components() -> Tuple[
