@@ -1,7 +1,5 @@
 import time
 
-from core.state import state
-
 class GestureMapper:
     """
     Maps stabilized gestures to desktop actions.
@@ -23,7 +21,7 @@ class GestureMapper:
         now = time.time()
 
         # Ignore everything if system already locked
-        if state.lock_triggered:
+        if self.state.lock_triggered:
             return
 
         # Cooldown gate
@@ -39,12 +37,12 @@ class GestureMapper:
 
             # Open palm toggles gesture control
             if gesture == "OPEN_PALM":
-                state.toggle_gesture()
+                self.state.toggle_gesture()
                 self.prev_gesture = gesture
                 return
 
             # If gestures are disabled, stop here
-            if not state.gesture_enabled:
+            if not self.state.gesture_enabled:
                 self.prev_gesture = gesture
                 return
 
