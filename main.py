@@ -28,7 +28,7 @@ def main():
     face_detector = FacePresenceDetector(absence_timeout=0.1)
     face_recognizer = FaceRecognizer()
     actions = DesktopActions()
-    mapper = GestureMapper(actions)
+    mapper = GestureMapper(actions, state)
 
     blur_start_time = None
 
