@@ -18,11 +18,15 @@ class CameraInfo:
     fps: float
 
 
-def _default_backend() -> int:
-    # On macOS, AVFoundation is the least chaotic option.
+def _backend_candidates() -> List[int]:
+    """
+    Backend priority list.
+    On macOS, CAP_ANY often supports index selection better than CAP_AVFOUNDATION.
+    CAP_AVFOUNDATION may only work for the default device (index 0).
+    """
     if sys.platform == "darwin":
-        return cv2.CAP_AVFOUNDATION
-    return cv2.CAP_ANY
+        return [cv2.CAP_ANY, cv2.CAP_AVFOUNDATION]
+    return [cv2.CAP_ANY]
 
 
 def _try_open(
@@ -47,46 +51,47 @@ def _try_open(
     return cap
 
 
-def list_working_cameras(
-    max_index: int = 6, backend: Optional[int] = None
-) -> List[CameraInfo]:
-    backend = _default_backend() if backend is None else backend
+def list_working_cameras(max_index: int = 6) -> List[CameraInfo]:
     found: List[CameraInfo] = []
 
-    for idx in range(max_index + 1):
-        cap = _try_open(idx, backend)
-        if cap is None:
-            continue
+    for backend in _backend_candidates():
+        for idx in range(max_index + 1):
+            cap = _try_open(idx, backend)
+            if cap is None:
+                continue
 
-        info = CameraInfo(
-            index=idx,
-            backend=backend,
-            width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0),
-            height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
-            fps=float(cap.get(cv2.CAP_PROP_FPS) or 0.0),
-        )
-        found.append(info)
-        cap.release()
+            info = CameraInfo(
+                index=idx,
+                backend=backend,
+                width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0),
+                height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
+                fps=float(cap.get(cv2.CAP_PROP_FPS) or 0.0),
+            )
+            found.append(info)
+            cap.release()
 
-    return found
+        # If CAP_ANY finds more than just index 0, great—stop early.
+        if sys.platform == "darwin":
+            any_nonzero = any(c.index != 0 for c in found if c.backend == cv2.CAP_ANY)
+            if any_nonzero:
+                break
+
+    # Deduplicate (backend+index)
+    uniq = {}
+    for c in found:
+        uniq[(c.backend, c.index)] = c
+
+    return list(uniq.values())
 
 
 class Camera:
-    """
-    Deterministic camera wrapper:
-      - Can probe for working indices
-      - Can force a specific index (recommended on macOS w/ Continuity Camera)
-    """
-
     def __init__(
         self,
         index: Optional[int] = None,
         max_index: int = 6,
-        backend: Optional[int] = None,
         request_size: Tuple[int, int] = (1280, 720),
         request_fps: float = 30.0,
     ):
-        self.backend = _default_backend() if backend is None else backend
         self.index = index
         self.max_index = max_index
         self.request_size = request_size
@@ -97,43 +102,51 @@ class Camera:
 
         self._open()
 
+    @staticmethod
+    def probe(max_index: int = 6) -> List[CameraInfo]:
+        return list_working_cameras(max_index=max_index)
+
     def _open(self) -> None:
-        candidates = list_working_cameras(
-            max_index=self.max_index, backend=self.backend
-        )
+        candidates = list_working_cameras(max_index=self.max_index)
         if not candidates:
             raise RuntimeError(
                 "No working cameras found.\n"
                 "Fixes:\n"
                 "  • Close apps using camera (Zoom/FaceTime/Browser).\n"
                 "  • macOS: System Settings → Privacy & Security → Camera → allow Terminal/Python.\n"
-                "  • Try --max-camera-index 10.\n"
             )
 
         chosen: Optional[CameraInfo] = None
 
         if self.index is not None:
-            for c in candidates:
-                if c.index == self.index:
-                    chosen = c
-                    break
-            if chosen is None:
+            # Prefer CAP_ANY match first if available
+            pref = sorted(
+                [c for c in candidates if c.index == self.index],
+                key=lambda c: 0 if c.backend == cv2.CAP_ANY else 1,
+            )
+            if pref:
+                chosen = pref[0]
+            else:
                 raise RuntimeError(
                     f"Camera index {self.index} not usable.\n"
-                    f"Working indices: {[c.index for c in candidates]}\n"
-                    "Run with one of those: --camera <index>"
+                    f"Detected: {[ (c.index, c.backend) for c in candidates ]}\n"
+                    "Try --list-cameras and pick a valid index."
                 )
         else:
-            # Default: first working camera.
-            # If Continuity Camera keeps hijacking index 0, use --camera explicitly.
-            chosen = candidates[0]
+            # Default: choose CAP_ANY index 0 if present; else first candidate.
+            cap_any_0 = next(
+                (c for c in candidates if c.backend == cv2.CAP_ANY and c.index == 0),
+                None,
+            )
+            chosen = cap_any_0 or candidates[0]
 
         cap = cv2.VideoCapture(chosen.index, chosen.backend)
         if not cap.isOpened():
             cap.release()
-            raise RuntimeError(f"Failed to open camera index {chosen.index}")
+            raise RuntimeError(
+                f"Failed to open camera index {chosen.index} (backend {chosen.backend})"
+            )
 
-        # Best-effort capture settings
         w, h = self.request_size
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, float(w))
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, float(h))
@@ -147,10 +160,6 @@ class Camera:
             height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0),
             fps=float(cap.get(cv2.CAP_PROP_FPS) or 0.0),
         )
-
-    @staticmethod
-    def probe(max_index: int = 6, backend: Optional[int] = None) -> List[CameraInfo]:
-        return list_working_cameras(max_index=max_index, backend=backend)
 
     def is_opened(self) -> bool:
         return self.cap is not None and self.cap.isOpened()
