@@ -1,4 +1,5 @@
 import time
+import argparse
 import cv2
 
 from core.state import TutorState
@@ -17,12 +18,48 @@ WINDOW_NAME = "Tutor"
 BLUR_DURATION = 1.5
 
 
+def parse_args():
+    p = argparse.ArgumentParser(description="Tutor")
+    p.add_argument(
+        "--list-cameras",
+        action="store_true",
+        help="List working camera indices and exit",
+    )
+    p.add_argument(
+        "--camera",
+        type=int,
+        default=None,
+        help="Force camera index (recommended on macOS)",
+    )
+    p.add_argument(
+        "--max-camera-index", type=int, default=6, help="Max camera index to probe"
+    )
+    return p.parse_args()
+
+
 def main():
+    args = parse_args()
+
+    if args.list_cameras:
+        cams = Camera.probe(max_index=args.max_camera_index)
+        if not cams:
+            print("No working cameras found.")
+        else:
+            print("Working cameras:")
+            for c in cams:
+                print(f"  index={c.index}  {c.width}x{c.height}  fps={c.fps:.2f}")
+        return
+
     state = TutorState()
 
-    camera = Camera()
+    camera = Camera(index=args.camera, max_index=args.max_camera_index)
     if not camera.is_opened():
         raise RuntimeError("Failed to open camera")
+
+    if camera.info:
+        print(
+            f"[Tutor] Using camera index={camera.info.index}  {camera.info.width}x{camera.info.height}  fps={camera.info.fps:.2f}"
+        )
 
     hand_tracker = HandTracker()
     face_detector = FacePresenceDetector(absence_timeout=0.1)
